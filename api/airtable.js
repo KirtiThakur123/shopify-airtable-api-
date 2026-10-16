@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = req.body;
+    const body = req.body || {};
 
     const confirmationNumber =
       body["Confirmation Number"] ||
@@ -28,37 +28,39 @@ export default async function handler(req, res) {
       body["Warranty Number"] ||
       "";
 
+    // Fields to save in Airtable
     const fields = {
       "Confirmation Number": confirmationNumber,
       "Full Name": body["Full Name"] || "",
       "Email": body["Email"] || "",
-      "Selected Tool": body["Selected Tool"] || "",
+      "Selected Tool": body["Selected Tool"] || ""
     };
 
-    const purchaseDate =
-      body["Day of Purchase"] ||
-      body["Day of purchase"] ||
-      body["Date"] ||
-      "";
+    // Purchase date is temporarily skipped.
+    // We will configure this after the main API test succeeds.
 
-    if (purchaseDate) {
-      fields["Day of Purchase"] = purchaseDate;
-    }
-
-    const receipt = body["Proof of Purchase"] ||
+    const receipt =
+      body["Proof of Purchase"] ||
       body["Attachment"] ||
       body["RECEIPT PROOF"] ||
       "";
 
+    // Airtable attachment fields require publicly accessible URLs.
     if (Array.isArray(receipt)) {
-      fields["Proof of Purchase"] = receipt
+      const attachments = receipt
         .filter(item => item && item.url)
         .map(item => ({ url: item.url }));
+
+      if (attachments.length > 0) {
+        fields["Proof of Purchase"] = attachments;
+      }
     } else if (
       typeof receipt === "string" &&
       /^https?:\/\//i.test(receipt)
     ) {
-      fields["Proof of Purchase"] = [{ url: receipt }];
+      fields["Proof of Purchase"] = [
+        { url: receipt }
+      ];
     }
 
     if (!confirmationNumber) {
@@ -88,7 +90,9 @@ export default async function handler(req, res) {
       return res.status(response.status).json({
         success: false,
         message: "Airtable could not save the record.",
-        error: result.error?.message || "Please check your Airtable setup."
+        error:
+          result.error?.message ||
+          "Please check your Airtable setup."
       });
     }
 
@@ -97,6 +101,7 @@ export default async function handler(req, res) {
       message: "Registration saved successfully.",
       id: result.id
     });
+
   } catch (error) {
     console.error("API error:", error);
 
